@@ -1,0 +1,117 @@
+name: 'Setup Instruqt CLI'
+description: 'Install and cache the Instruqt CLI for use in workflows'
+author: 'Instruqt'
+
+inputs:
+  version:
+    description: 'Instruqt CLI version to install'
+    required: false
+    default: 'latest'
+
+outputs:
+  version:
+    description: 'Installed Instruqt CLI version'
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine platform and architecture
+      id: platform
+      shell: bash
+      run: |
+        case "${{ runner.os }}" in
+          Linux)
+            echo "platform=linux" >> $GITHUB_OUTPUT
+            ;;
+          macOS)
+            if [[ "${{ runner.arch }}" == "ARM64" ]]; then
+              echo "platform=darwin-arm64" >> $GITHUB_OUTPUT
+            else
+              echo "platform=darwin-amd64" >> $GITHUB_OUTPUT
+            fi
+            ;;
+          Windows)
+            echo "platform=windows" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "::error::Unsupported platform: ${{ runner.os }}"
+            exit 1
+            ;;
+        esac
+
+    - name: Cache Instruqt CLI
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/bin/instruqt
+        key: instruqt-cli-${{ inputs.version }}-${{ steps.platform.outputs.platform }}
+        restore-keys: |
+          instruqt-cli-${{ inputs.version }}-
+          instruqt-cli-
+
+    - name: Install Instruqt CLI
+      id: install
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        PLATFORM: ${{ steps.platform.outputs.platform }}
+      run: |
+        # Determine download URL
+        if [[ "$VERSION" == "latest" ]]; then
+          if [[ "$PLATFORM" == "linux" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/latest/download/instruqt-linux.zip"
+          elif [[ "$PLATFORM" == "darwin-amd64" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/latest/download/instruqt-darwin-amd64.zip"
+          elif [[ "$PLATFORM" == "darwin-arm64" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/latest/download/instruqt-darwin-arm64.zip"
+          elif [[ "$PLATFORM" == "windows" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/latest/download/instruqt-windows.zip"
+          fi
+        else
+          if [[ "$PLATFORM" == "linux" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/download/${VERSION}/instruqt-linux.zip"
+          elif [[ "$PLATFORM" == "darwin-amd64" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/download/${VERSION}/instruqt-darwin-amd64.zip"
+          elif [[ "$PLATFORM" == "darwin-arm64" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/download/${VERSION}/instruqt-darwin-arm64.zip"
+          elif [[ "$PLATFORM" == "windows" ]]; then
+            download_url="https://github.com/instruqt/cli/releases/download/${VERSION}/instruqt-windows.zip"
+          fi
+        fi
+        
+        echo "Downloading from: $download_url"
+        
+        # Download and extract
+        curl -L -o instruqt.zip "$download_url"
+        unzip -q instruqt.zip
+        
+        # Install to local bin
+        mkdir -p ~/.local/bin
+        if [[ "$PLATFORM" == "windows" ]]; then
+          mv instruqt.exe ~/.local/bin/
+        else
+          mv instruqt ~/.local/bin/
+          chmod +x ~/.local/bin/instruqt
+        fi
+        
+        # Clean up
+        rm instruqt.zip
+        
+        # Add to PATH
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
+        # Get installed version
+        version=$(~/.local/bin/instruqt version | sed 's/Version: //')
+        echo "version=$version" >> $GITHUB_OUTPUT
+        echo "::notice::Instruqt CLI $version installed"
+
+    - name: Set PATH for cached CLI
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        version=$(~/.local/bin/instruqt version | sed 's/Version: //')
+        echo "version=$version" >> $GITHUB_OUTPUT
+        echo "::notice::Instruqt CLI $version restored from cache"

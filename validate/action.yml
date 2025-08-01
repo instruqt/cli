@@ -1,0 +1,92 @@
+name: 'Validate Instruqt Lab'
+description: 'Validate Instruqt lab configurations using instruqt lab validate'
+author: 'Instruqt'
+
+inputs:
+  path:
+    description: 'Path to lab directory or HCL file to validate'
+    required: true
+  fail-on-error:
+    description: 'Whether to fail the action on validation errors'
+    required: false
+    default: 'true'
+
+outputs:
+  status:
+    description: 'Validation status (success or failed)'
+    value: ${{ steps.validate.outputs.status }}
+  output:
+    description: 'Full output from instruqt lab validate'
+    value: ${{ steps.validate.outputs.output }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate lab configuration
+      id: validate
+      shell: bash
+      env:
+        LAB_PATH: ${{ inputs.path }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+      run: |
+        set -o pipefail
+        
+        echo "::group::Validating $LAB_PATH"
+        
+        # Run validation and capture output
+        if output=$(instruqt lab validate "$LAB_PATH" 2>&1); then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "::notice::Lab validation passed for $LAB_PATH"
+          
+          # Store output
+          {
+            echo "output<<EOF"
+            echo "$output"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
+          # Add to job summary
+          echo "## Validation Results for \`$LAB_PATH\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          
+        else
+          exit_code=$?
+          echo "status=failed" >> $GITHUB_OUTPUT
+          
+          # Store output
+          {
+            echo "output<<EOF"
+            echo "$output"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
+          # Add to job summary
+          echo "## Validation Results for \`$LAB_PATH\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Failed (exit code $exit_code)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Output:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          echo "::endgroup::"
+          
+          if [[ "$FAIL_ON_ERROR" == "true" ]]; then
+            echo "::error::Lab validation failed for $LAB_PATH"
+            exit $exit_code
+          else
+            echo "::warning::Lab validation failed for $LAB_PATH (continuing due to fail-on-error=false)"
+          fi
+        fi
+        
+        echo "::endgroup::"
