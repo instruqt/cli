@@ -38,6 +38,9 @@ runs:
           echo "status=success" >> $GITHUB_OUTPUT
           echo "::notice::Lab validation passed for $LAB_PATH"
           
+          # Display output in console
+          echo "$output"
+          
           # Store output
           {
             echo "output<<EOF"
@@ -61,6 +64,9 @@ runs:
         else
           exit_code=$?
           echo "status=failed" >> $GITHUB_OUTPUT
+          
+          # Display output in console
+          echo "$output"
           
           # Store output
           {
