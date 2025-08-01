@@ -1,0 +1,56 @@
+name: Test Actions
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test setup action
+        uses: ./setup
+      - name: Verify CLI is installed
+        run: |
+          instruqt version
+          which instruqt
+
+  test-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Instruqt CLI
+        uses: ./setup
+      - name: Clone lab-examples for testing
+        run: |
+          git clone https://github.com/instruqt/lab-examples.git
+      - name: Test validate action - success case
+        uses: ./validate
+        with:
+          path: ./lab-examples/minimal
+      - name: Test validate action - with fail-on-error false
+        uses: ./validate
+        with:
+          path: ./non-existent-lab
+          fail-on-error: false
+        continue-on-error: true
+
+  test-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        lab: [minimal, demo]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Instruqt CLI
+        uses: ./setup
+      - name: Clone lab-examples for testing
+        run: |
+          git clone https://github.com/instruqt/lab-examples.git
+      - name: Validate lab
+        uses: ./validate
+        with:
+          path: ./lab-examples/${{ matrix.lab }}

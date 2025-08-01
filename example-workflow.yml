@@ -1,0 +1,54 @@
+# Example GitHub Actions workflow for validating Instruqt labs
+# Save this as .github/workflows/validate-labs.yml in your repository
+
+name: Validate Labs
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        lab:
+          - ./lab-1
+          - ./lab-2
+          - ./lab-3
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Instruqt CLI
+        uses: instruqt/cli/setup@v1
+      
+      - name: Validate lab
+        uses: instruqt/cli/validate@v1
+        with:
+          path: ${{ matrix.lab }}
+
+  # Alternative: validate all labs in sequence
+  validate-sequential:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Instruqt CLI
+        uses: instruqt/cli/setup@v1
+      
+      - name: Validate lab 1
+        uses: instruqt/cli/validate@v1
+        with:
+          path: ./lab-1
+      
+      - name: Validate lab 2
+        uses: instruqt/cli/validate@v1
+        with:
+          path: ./lab-2
+      
+      - name: Validate lab 3
+        uses: instruqt/cli/validate@v1
+        with:
+          path: ./lab-3
